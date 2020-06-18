@@ -64,10 +64,14 @@ func (c console) log(ctx *context.Context, level logrus.Level, msgobj goja.Value
 		}
 	}
 
-	fields := make(logrus.Fields)
+	// TODO this is not how it works anywhere else
+	// nodejs: https://nodejs.org/api/console.html#console_console_info_data_args
+	// mdn: https://developer.mozilla.org/en-US/docs/Web/API/Console/log
+	fields := make(logrus.Fields, len(args)+1)
 	for i, arg := range args {
 		fields[strconv.Itoa(i)] = arg.String()
 	}
+	fields["source"] = "console"
 	msg := msgobj.ToString()
 	e := c.Logger.WithFields(fields)
 	switch level {

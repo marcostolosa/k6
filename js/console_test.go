@@ -105,10 +105,10 @@ func TestConsole(t *testing.T) {
 		Message string
 		Data    logrus.Fields
 	}{
-		`"string"`:         {Message: "string"},
-		`"string","a","b"`: {Message: "string", Data: logrus.Fields{"0": "a", "1": "b"}},
-		`"string",1,2`:     {Message: "string", Data: logrus.Fields{"0": "1", "1": "2"}},
-		`{}`:               {Message: "[object Object]"},
+		`"string"`:         {Message: "string", Data: logrus.Fields{"source": "console"}},
+		`"string","a","b"`: {Message: "string", Data: logrus.Fields{"0": "a", "1": "b", "source": "console"}},
+		`"string",1,2`:     {Message: "string", Data: logrus.Fields{"0": "1", "1": "2", "source": "console"}},
+		`{}`:               {Message: "[object Object]", Data: logrus.Fields{"source": "console"}},
 	}
 	for name, level := range levels {
 		name, level := name, level
@@ -168,10 +168,10 @@ func TestFileConsole(t *testing.T) {
 			Message string
 			Data    logrus.Fields
 		}{
-			`"string"`:         {Message: "string"},
-			`"string","a","b"`: {Message: "string", Data: logrus.Fields{"0": "a", "1": "b"}},
-			`"string",1,2`:     {Message: "string", Data: logrus.Fields{"0": "1", "1": "2"}},
-			`{}`:               {Message: "[object Object]"},
+			`"string"`:         {Message: "string", Data: logrus.Fields{"source": "console"}},
+			`"string","a","b"`: {Message: "string", Data: logrus.Fields{"0": "a", "1": "b", "source": "console"}},
+			`"string",1,2`:     {Message: "string", Data: logrus.Fields{"0": "1", "1": "2", "source": "console"}},
+			`{}`:               {Message: "[object Object]", Data: logrus.Fields{"source": "console"}},
 		}
 		preExisting = map[string]bool{
 			"log exists":        false,
