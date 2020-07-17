@@ -147,13 +147,26 @@ func (h *lokiHook) loop() {
 	)
 
 	defer close(pushCh)
+
 	go func() {
+		oldLogs := make([]*logrus.Entry, 0, h.limit)
 		for ch := range pushCh {
+			// TODO rewrite this when we know by what we are going to limit
 			entriesBeingPushed, entrys = entrys, entriesBeingPushed
 			oldCount, oldDropped := count, dropped
 			count, dropped = 0, 0
-			close(ch)
-			_ = h.push(entriesBeingPushed[:oldCount], oldDropped) // TODO print it on terminal ?!?
+			close(ch) // signal that more buffering can continue
+			// TODO optimize a lot
+			newslice := append(append([]*logrus.Entry{}, oldLogs...), entriesBeingPushed[:oldCount]...)
+			n, err := h.push(newslice, oldDropped)
+			_ = err // TODO print it on terminal ?!?
+			if n > len(newslice) {
+				oldLogs = oldLogs[:0]
+				continue
+			}
+			leftOver := newslice[n:]
+			oldLogs = oldLogs[:len(leftOver)]
+			copy(oldLogs, leftOver)
 		}
 	}()
 
@@ -177,14 +190,30 @@ func (h *lokiHook) loop() {
 	}
 }
 
-func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) error {
-	sort.SliceStable(entrys, func(i, j int) bool {
-		return entrys[i].Time.Before(entrys[j].Time)
+func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) (int, error) {
+	if len(entrys) == 0 {
+		return 0, nil
+	}
+
+	// Here UnixNano is used instead of Before as ... before doesn't order by the value of UnixNano
+	// ... somehow. To be investigated further
+	sort.Slice(entrys, func(i, j int) bool {
+		return entrys[i].Time.UnixNano() < entrys[j].Time.UnixNano()
 	})
+
+	cutoff := time.Now().Add(-time.Millisecond * 500) // probably better to be configurable
+
+	cutoffPoint := sort.Search(len(entrys), func(i int) bool {
+		return !(entrys[i].Time.UnixNano() < cutoff.UnixNano())
+	})
+
+	if cutoffPoint > len(entrys) {
+		cutoffPoint = len(entrys)
+	}
 
 	strms := new(lokiPushMessage)
 
-	for _, entry := range entrys {
+	for _, entry := range entrys[:cutoffPoint] {
 		addMsg(strms, entry, h.additionalParams)
 	}
 	if dropped != 0 {
@@ -196,6 +225,7 @@ func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) error {
 				Level: logrus.WarnLevel,
 				Message: fmt.Sprintf("k6 dropped some packages because they were above the limit of %d/%s",
 					h.limit, h.pushPeriod),
+				Time: cutoff,
 			},
 			h.additionalParams,
 		)
@@ -203,13 +233,13 @@ func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) error {
 
 	b, err := json.Marshal(strms)
 	if err != nil {
-		return err
+		return cutoffPoint, err
 	}
 	// TODO use a custom client
 	res, err := http.Post(h.addr, "application/json", bytes.NewBuffer(b)) //nolint:noctx
 	_, _ = io.Copy(ioutil.Discard, res.Body)
 	_ = res.Body.Close()
-	return err
+	return cutoffPoint, err
 }
 
 func addMsg(strms *lokiPushMessage, entry *logrus.Entry, additionalParams [][2]string) {
