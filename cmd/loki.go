@@ -28,6 +28,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -177,6 +178,10 @@ func (h *lokiHook) loop() {
 }
 
 func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) error {
+	sort.SliceStable(entrys, func(i, j int) bool {
+		return entrys[i].Time.Before(entrys[j].Time)
+	})
+
 	strms := new(lokiPushMessage)
 
 	for _, entry := range entrys {
