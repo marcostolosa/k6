@@ -237,8 +237,10 @@ func (h *lokiHook) push(entrys []*logrus.Entry, dropped int) (int, error) {
 	}
 	// TODO use a custom client
 	res, err := http.Post(h.addr, "application/json", bytes.NewBuffer(b)) //nolint:noctx
-	_, _ = io.Copy(ioutil.Discard, res.Body)
-	_ = res.Body.Close()
+	if res != nil {
+		_, _ = io.Copy(ioutil.Discard, res.Body)
+		_ = res.Body.Close()
+	}
 	return cutoffPoint, err
 }
 
